@@ -1,10 +1,12 @@
-name: Deploy Docker on Codespaces
+name: Keep Docker Running on Codespaces
 
-on:  
+on:
   push:
     branches:
-      - main  # Adjust if needed
-  workflow_dispatch:  # Allows manual trigger
+      - main
+  workflow_dispatch:  # Manual trigger
+  schedule:
+    - cron: "0 */12 * * *"  # Runs every 12 hours to prevent timeout
 
 jobs:
   deploy:
@@ -20,9 +22,14 @@ jobs:
       - name: Pull Docker Image
         run: docker pull bharshavardhanreddy924/deepfake_detection:latest
 
+      - name: Stop and Remove Existing Container (if running)
+        run: |
+          docker stop deepfake_container || true
+          docker rm deepfake_container || true
+
       - name: Run Docker Container
         run: |
           docker run -d --restart=always -p 8000:8000 --name deepfake_container bharshavardhanreddy924/deepfake_detection:latest
 
-      - name: Keep Alive
-        run: nohup sleep infinity &  # Ensures Codespaces doesn't shut down
+      - name: Keep Codespaces Alive
+        run: nohup sleep infinity &
