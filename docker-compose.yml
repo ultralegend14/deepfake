@@ -1,0 +1,8 @@
+version: '3'
+services:
+  app:
+    image: bharshavardhanreddy924/deepfake_detection:latest
+    container_name: deepfake_container
+    restart: always
+    ports:
+      - "8000:8000"  # Adjust the port based on your application
