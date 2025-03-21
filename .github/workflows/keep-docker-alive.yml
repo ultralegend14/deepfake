@@ -1,0 +1,51 @@
+name: Keep Docker Running on Codespaces
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:  # Allows manual trigger
+  schedule:
+    - cron: "*/5 * * * *"  # Runs every 5 minutes
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Log in to Docker Hub
+        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+      - name: Pull Docker Image
+        run: docker pull bharshavardhanreddy924/deepfake_detection:latest
+
+      - name: Stop and Remove Existing Container (if running)
+        run: |
+          docker stop deepfake_container || true
+          docker rm deepfake_container || true
+
+      - name: Run Docker Container
+        run: |
+          docker run -d --restart=always -p 8000:8000 --name deepfake_container bharshavardhanreddy924/deepfake_detection:latest
+
+      - name: Install Ngrok and Start Tunnel
+        run: |
+          curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
+          echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
+          sudo apt update && sudo apt install ngrok -y
+          ngrok config add-authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
+          nohup ngrok http 8000 --log=stdout > ngrok.log 2>&1 &
+
+      - name: Extract Ngrok URL
+        run: |
+          sleep 5  # Give Ngrok some time to start
+          NGROK_URL=$(curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url')
+          echo "NGROK_URL=$NGROK_URL" >> $GITHUB_ENV
+
+      - name: Update MongoDB with Ngrok URL
+        run: |
+          pip install pymongo
+          python update_mongo.py
